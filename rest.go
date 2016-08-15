@@ -1,0 +1,395 @@
+/* Copyright (C) Couchbase, Inc 2016 - All Rights Reserved
+ * Unauthorized copying of this file, via any medium is strictly prohibited
+ * Proprietary and confidential
+ */
+
+package docloader
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"net/url"
+	"time"
+)
+
+type RestClientError struct {
+	method string
+	url    string
+	err    error
+}
+
+func (e RestClientError) Error() string {
+	return fmt.Sprintf("Rest client error (%s %s): %s", e.method, e.url, e.err)
+}
+
+type ServiceNotAvailableError struct {
+	service string
+}
+
+func (e ServiceNotAvailableError) Error() string {
+	return fmt.Sprintf("Service `%s` is not available on target cluster", e.service)
+}
+
+type HttpError struct {
+	code     int
+	method   string
+	resource string
+	body     string
+}
+
+func (e HttpError) Error() string {
+	switch e.code {
+	case http.StatusBadRequest:
+		return fmt.Sprintf("Bad request executing %s %s due to %s",
+			e.method, e.resource, e.body)
+	case http.StatusUnauthorized:
+		return fmt.Sprintf("Authentication error executing \"%s %s\" "+
+			"check username and password", e.method, e.resource)
+	case http.StatusInternalServerError:
+		return fmt.Sprintf("Internal server error while executing \"%s %s\" "+
+			"check the server logs for more details", e.method, e.resource)
+	default:
+		return fmt.Sprintf("Recieved error %d while executing \"%s %s\"",
+			e.code, e.method, e.resource)
+	}
+}
+
+func (e HttpError) Code() int {
+	return e.code
+}
+
+type BucketNotFoundError struct {
+	name string
+}
+
+func (e BucketNotFoundError) Error() string {
+	return fmt.Sprintf("Bucket %s doesn't exist", e.name)
+}
+
+type Node struct {
+	Hostname string       `json:"hostname"`
+	Services NodeServices `json:"services"`
+}
+
+type NodeServices struct {
+	Capi           int `json:"capi"`
+	Management     int `json:"mgmt"`
+	FullText       int `json:"fts"`
+	SecondaryIndex int `json:"indexHttp"`
+	N1QL           int `json:"n1ql"`
+}
+
+type RestClient struct {
+	client   http.Client
+	secure   bool
+	host     string
+	username string
+	password string
+}
+
+func CreateRestClient(host, username, password string) *RestClient {
+	return &RestClient{
+		client:   http.Client{},
+		host:     host,
+		username: username,
+		password: password,
+	}
+}
+
+func (r *RestClient) PutViews(bucket string, views []DDoc) error {
+	method := "PUT"
+	host, err := r.viewsHost()
+	if err != nil {
+		return err
+	}
+
+	for _, ddoc := range views {
+		url := host + "/couchBase/" + bucket + "/" + ddoc.Id
+
+		data, err := json.Marshal(ddoc.Views)
+		if err != nil {
+			return RestClientError{method, url, err}
+		}
+
+		req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
+		if err != nil {
+			return RestClientError{method, url, err}
+		}
+		req.SetBasicAuth(r.username, r.password)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := r.executeRequest(req)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode == http.StatusNotFound {
+			return BucketNotFoundError{bucket}
+		} else if resp.StatusCode != http.StatusCreated {
+			msg, _ := ioutil.ReadAll(resp.Body)
+			return HttpError{resp.StatusCode, method, url, string(msg)}
+		}
+	}
+	return nil
+}
+
+func (r *RestClient) BucketExists(name string) (bool, error) {
+	url := r.host + "/pools/default/buckets"
+	resp, err := r.executeGet(url)
+	if err != nil {
+		return false, err
+	}
+
+	defer resp.Body.Close()
+
+	var body []json.RawMessage
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	err = decoder.Decode(&body)
+	if err != nil {
+		return false, &RestClientError{"GET", url, err}
+	}
+
+	for _, data := range body {
+		var bs BucketSettings
+		if err := json.Unmarshal(data, &bs); err != nil {
+			return false, err
+		}
+
+		if bs.Name == name {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (r *RestClient) CreateBucket(settings *BucketSettings) error {
+	method := "POST"
+	url := "/pools/default/buckets"
+
+	data := []byte(settings.FormEncoded())
+
+	req, err := http.NewRequest(method, r.host+url, bytes.NewBuffer(data))
+	if err != nil {
+		return RestClientError{method, url, err}
+	}
+	req.SetBasicAuth(r.username, r.password)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := r.executeRequest(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == http.StatusBadRequest {
+		defer resp.Body.Close()
+		contents, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			contents = []byte("<no body>")
+		}
+		return HttpError{resp.StatusCode, method, url, string(contents)}
+	} else if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+
+		return HttpError{resp.StatusCode, method, url, ""}
+	}
+
+	for !r.isBucketReady(settings.Name) {
+		time.Sleep(1 * time.Second)
+	}
+
+	return nil
+}
+
+func (r *RestClient) isBucketReady(bucket string) bool {
+	url := r.host + "/pools/default/buckets/" + bucket
+
+	resp, err := r.executeGet(url)
+	if err != nil {
+		return false
+	}
+
+	defer resp.Body.Close()
+
+	type overlay struct {
+		Nodes []struct {
+			Status string `json:"status"`
+		} `json:"nodes"`
+	}
+
+	var data overlay
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	if err = decoder.Decode(&data); err != nil {
+		return false
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	if len(data.Nodes) == 0 {
+		return false
+	}
+
+	for _, node := range data.Nodes {
+		if node.Status != "healthy" {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *RestClient) PostFullTextIndexes(defs []FullTextIndex) error {
+	if len(defs) == 0 {
+		return nil
+	}
+
+	method := "PUT"
+	host, err := r.fullTextHost()
+	if err != nil {
+		return err
+	}
+
+	for _, def := range defs {
+		url := fmt.Sprintf("%s/api/index/%s?prevIndexUUID=*", host, def.Name)
+		data, err := json.Marshal(def)
+		if err != nil {
+			return &RestClientError{method, url, err}
+		}
+
+		req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
+		if err != nil {
+			return RestClientError{method, url, err}
+		}
+		req.SetBasicAuth(r.username, r.password)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := r.executeRequest(req)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode == http.StatusBadRequest {
+			defer resp.Body.Close()
+			contents, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				contents = []byte("<no body>")
+			}
+			return HttpError{resp.StatusCode, method, url, string(contents)}
+		} else if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+			return HttpError{resp.StatusCode, method, url, ""}
+		}
+	}
+
+	return nil
+}
+
+func (r *RestClient) GetClusterNodes() ([]Node, error) {
+	uri := r.host + "/pools/default/nodeServices"
+	resp, err := r.executeGet(uri)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	type overlay struct {
+		NodesExt []Node `json:"nodesExt"`
+	}
+
+	var data overlay
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	err = decoder.Decode(&data)
+	if err != nil {
+		return nil, &RestClientError{"GET", uri, err}
+	}
+
+	parsed, _ := url.Parse(r.host)
+	if err != nil {
+		return nil, &RestClientError{"GET", uri, err}
+	}
+	hostname, _, err := net.SplitHostPort(parsed.Host)
+	if err != nil {
+		return nil, &RestClientError{"GET", uri, err}
+	}
+
+	for i := 0; i < len(data.NodesExt); i++ {
+		if data.NodesExt[i].Hostname == "" {
+			data.NodesExt[i].Hostname = hostname
+		}
+	}
+
+	return data.NodesExt, nil
+}
+
+func (r *RestClient) fullTextHost() (string, error) {
+	nodes, err := r.GetClusterNodes()
+	if err != nil {
+		return "", err
+	}
+
+	for _, node := range nodes {
+		if node.Services.FullText != 0 {
+			return fmt.Sprintf("http://%s:%d", node.Hostname, node.Services.FullText), nil
+		}
+	}
+
+	return "", ServiceNotAvailableError{"full text"}
+}
+
+func (r *RestClient) viewsHost() (string, error) {
+	nodes, err := r.GetClusterNodes()
+	if err != nil {
+		return "", err
+	}
+
+	for _, node := range nodes {
+		if node.Services.Capi != 0 {
+			return fmt.Sprintf("http://%s:%d", node.Hostname, node.Services.Management), nil
+		}
+	}
+
+	return "", ServiceNotAvailableError{"views"}
+}
+
+func (r *RestClient) executeGet(uri string) (*http.Response, error) {
+	method := "GET"
+	req, err := http.NewRequest(method, uri, nil)
+	if err != nil {
+		return nil, &RestClientError{method, uri, err}
+	}
+	req.SetBasicAuth(r.username, r.password)
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, &RestClientError{req.Method, req.URL.String(), err}
+	}
+
+	if resp.StatusCode == http.StatusBadRequest {
+		contents, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			contents = []byte("<no body>")
+		}
+		resp.Body.Close()
+		return nil, HttpError{resp.StatusCode, method, uri, string(contents)}
+	} else if resp.StatusCode != http.StatusOK {
+		return nil, HttpError{resp.StatusCode, method, uri, ""}
+	}
+
+	return resp, nil
+}
+
+func (r *RestClient) executeRequest(req *http.Request) (*http.Response, error) {
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, &RestClientError{req.Method, req.URL.String(), err}
+	}
+
+	return resp, nil
+}
