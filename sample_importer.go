@@ -76,8 +76,6 @@ func (js *jsonSampleImporter) CreateBucket(bucket string, memQuota int) bool {
 }
 
 func (js *jsonSampleImporter) Views(bucket string) bool {
-	ddocs := make([]DDoc, 0)
-
 	succeeded := true
 	for _, f := range js.zipfile.File {
 		doc := strings.Split(f.Name, "/design_docs/")
@@ -96,10 +94,7 @@ func (js *jsonSampleImporter) Views(bucket string) bool {
 			}
 
 			type overlay struct {
-				Id       string      `json:"_id"`
-				Language string      `json:"language"`
-				Views    interface{} `json:"views"`
-				Spatial  interface{} `json:"spatial"`
+				Id string `json:"_id"`
 			}
 
 			var dd overlay
@@ -111,22 +106,12 @@ func (js *jsonSampleImporter) Views(bucket string) bool {
 				continue
 			}
 
-			if dd.Spatial == nil {
-				ddocs = append(ddocs, DDoc{dd.Id, "", dd.Views})
-			} else {
-				code := make(map[string]interface{})
-				code["id"] = dd.Id
-				code["language"] = dd.Language
-				code["spatial"] = dd.Spatial
-				ddocs = append(ddocs, DDoc{dd.Id, "", code})
+			err = js.rest.PutViews(bucket, dd.Id, data)
+			if err != nil {
+				clog.Error(err)
+				succeeded = false
 			}
 		}
-	}
-
-	err := js.rest.PutViews(bucket, ddocs)
-	if err != nil {
-		clog.Error(err)
-		succeeded = false
 	}
 
 	return succeeded

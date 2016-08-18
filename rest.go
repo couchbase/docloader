@@ -100,42 +100,35 @@ func CreateRestClient(host, username, password string) *RestClient {
 	}
 }
 
-func (r *RestClient) PutViews(bucket string, views []DDoc) error {
+func (r *RestClient) PutViews(bucket, ddocName string, ddoc []byte) error {
 	method := "PUT"
 	host, err := r.viewsHost()
 	if err != nil {
 		return err
 	}
 
-	for _, ddoc := range views {
-		url := host + "/couchBase/" + bucket + "/" + ddoc.Id
-
-		data, err := json.Marshal(ddoc.Views)
-		if err != nil {
-			return RestClientError{method, url, err}
-		}
-
-		req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
-		if err != nil {
-			return RestClientError{method, url, err}
-		}
-		if r.username != "" || r.password != "" {
-			req.SetBasicAuth(r.username, r.password)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := r.executeRequest(req)
-		if err != nil {
-			return err
-		}
-
-		if resp.StatusCode == http.StatusNotFound {
-			return BucketNotFoundError{bucket}
-		} else if resp.StatusCode != http.StatusCreated {
-			msg, _ := ioutil.ReadAll(resp.Body)
-			return HttpError{resp.StatusCode, method, url, string(msg)}
-		}
+	url := host + "/couchBase/" + bucket + "/" + ddocName
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(ddoc))
+	if err != nil {
+		return RestClientError{method, url, err}
 	}
+	if r.username != "" || r.password != "" {
+		req.SetBasicAuth(r.username, r.password)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := r.executeRequest(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return BucketNotFoundError{bucket}
+	} else if resp.StatusCode != http.StatusCreated {
+		msg, _ := ioutil.ReadAll(resp.Body)
+		return HttpError{resp.StatusCode, method, url, string(msg)}
+	}
+
 	return nil
 }
 

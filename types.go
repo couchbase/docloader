@@ -11,12 +11,6 @@ import (
 	"strconv"
 )
 
-type DDoc struct {
-	Id    string      `json:"id"`
-	Rev   string      `json:"rev"`
-	Views interface{} `json:"json"`
-}
-
 type FullTextIndex struct {
 	Name         string      `json:"name"`
 	Param        interface{} `json:"params"`
@@ -25,13 +19,6 @@ type FullTextIndex struct {
 	SourceParams interface{} `json:"sourceParams"`
 	SourceType   string      `json:"sourceType"`
 	Type         string      `json:"type"`
-}
-
-type GSIIndexes struct {
-	Version uint64      `json:"version,omitempty"`
-	Code    string      `json:"code,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Result  interface{} `json:"result,omitempty"`
 }
 
 type N1QLQuery struct {
