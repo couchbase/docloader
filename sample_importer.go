@@ -187,7 +187,6 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 	}
 
 	read := uint64(0)
-	sent := uint64(0)
 	inserted := uint64(0)
 	complete := uint64(0)
 	succeeded := true
@@ -222,10 +221,11 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 	go func() {
 		for true {
 			if atomic.LoadUint64(&complete) == 1 &&
-				atomic.LoadUint64(&read) == atomic.LoadUint64(&sent) {
+				atomic.LoadUint64(&read) == atomic.LoadUint64(&inserted) {
 				for i := 0; i < threads; i++ {
 					killQ <- true
 				}
+				return
 			} else {
 				time.Sleep(250 * time.Millisecond)
 			}
@@ -248,19 +248,20 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 			for true {
 				select {
 				case pair := <-sendQ:
-					_, err = b.Upsert(pair.Key, pair.Value, 0)
-					if err != nil {
-						if err == gocb.ErrTmpFail {
-							sendQ <- pair
-							time.Sleep(250 * time.Millisecond)
-							continue
-						} else {
-							clog.Error(err)
-							succeeded = false
+					sentPair := false
+					for !sentPair {
+						sentPair = true
+						_, err = b.Upsert(pair.Key, pair.Value, 0)
+						if err != nil {
+							if err == gocb.ErrTmpFail {
+								time.Sleep(250 * time.Millisecond)
+								sentPair = false
+							} else {
+								clog.Error(err)
+							}
 						}
 					}
 					atomic.AddUint64(&inserted, 1)
-					atomic.AddUint64(&sent, 1)
 				case <-killQ:
 					return
 				}
