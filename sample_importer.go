@@ -98,7 +98,7 @@ func (js *jsonSampleImporter) Views(bucket string) bool {
 			type overlay struct {
 				Id       string      `json:"_id"`
 				Language string      `json:"language"`
-				Views    interface{} `json:"json"`
+				Views    interface{} `json:"views"`
 				Spatial  interface{} `json:"spatial"`
 			}
 
