@@ -86,10 +86,6 @@ func (c *Context) Run() {
 }
 
 func main() {
-	// TODO: Write up the man page
-	// TODO: Make sure things work on a directory
-	// TODO: Add a cmake file
-
 	allow_skip_auth := false
 	if os.Getenv("CBDOCLOADER_SKIP_AUTH") == "true" {
 		allow_skip_auth = true
