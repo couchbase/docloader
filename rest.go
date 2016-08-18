@@ -119,7 +119,9 @@ func (r *RestClient) PutViews(bucket string, views []DDoc) error {
 		if err != nil {
 			return RestClientError{method, url, err}
 		}
-		req.SetBasicAuth(r.username, r.password)
+		if r.username != "" || r.password != "" {
+			req.SetBasicAuth(r.username, r.password)
+		}
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := r.executeRequest(req)
@@ -178,7 +180,9 @@ func (r *RestClient) CreateBucket(settings *BucketSettings) error {
 	if err != nil {
 		return RestClientError{method, url, err}
 	}
-	req.SetBasicAuth(r.username, r.password)
+	if r.username != "" || r.password != "" {
+		req.SetBasicAuth(r.username, r.password)
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := r.executeRequest(req)
@@ -267,7 +271,9 @@ func (r *RestClient) PostFullTextIndexes(defs []FullTextIndex) error {
 		if err != nil {
 			return RestClientError{method, url, err}
 		}
-		req.SetBasicAuth(r.username, r.password)
+		if r.username != "" || r.password != "" {
+			req.SetBasicAuth(r.username, r.password)
+		}
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := r.executeRequest(req)
@@ -364,7 +370,9 @@ func (r *RestClient) executeGet(uri string) (*http.Response, error) {
 	if err != nil {
 		return nil, &RestClientError{method, uri, err}
 	}
-	req.SetBasicAuth(r.username, r.password)
+	if r.username != "" || r.password != "" {
+		req.SetBasicAuth(r.username, r.password)
+	}
 
 	resp, err := r.client.Do(req)
 	if err != nil {

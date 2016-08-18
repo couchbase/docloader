@@ -88,8 +88,12 @@ func (c *Context) Run() {
 func main() {
 	// TODO: Write up the man page
 	// TODO: Make sure things work on a directory
-	// TODO: Get all sample datasets ready
 	// TODO: Add a cmake file
+
+	allow_skip_auth := false
+	if os.Getenv("CBDOCLOADER_SKIP_AUTH") == "true" {
+		allow_skip_auth = true
+	}
 
 	manPath, err := man.ManPath(installType)
 	if err != nil {
@@ -117,14 +121,14 @@ func main() {
 				/* Destination  */ &ctx.username,
 				/* Default      */ "",
 				/* Deprecated   */ []string{},
-				/* Required     */ true,
+				/* Required     */ !allow_skip_auth,
 				/* Hidden       */ false,
 			),
 			cbflag.PasswordFlag( // Specified as -p or --pasword
 				/* Destination  */ &ctx.password,
 				/* Default      */ "",
 				/* Deprecated   */ []string{},
-				/* Required     */ true,
+				/* Required     */ !allow_skip_auth,
 				/* Hidden       */ false,
 			),
 			cbflag.StringFlag(
