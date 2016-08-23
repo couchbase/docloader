@@ -269,7 +269,7 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 						sentPair = true
 						_, err = b.Upsert(pair.Key, pair.Value, 0)
 						if err != nil {
-							if err == gocb.ErrTmpFail {
+							if err == gocb.ErrTmpFail || err == gocb.ErrOutOfMemory {
 								time.Sleep(250 * time.Millisecond)
 								sentPair = false
 							} else {
