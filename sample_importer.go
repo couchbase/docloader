@@ -119,6 +119,12 @@ func (js *jsonSampleImporter) Views(bucket string) bool {
 }
 
 func (js *jsonSampleImporter) Queries(bucket string) bool {
+	waitForN1QL, err := js.rest.hasN1qlService()
+	if err != nil {
+		clog.Error(err)
+		return false
+	}
+
 	c, _ := gocb.Connect(js.host)
 	b, err := c.OpenBucket(bucket, "")
 	if err != nil {
@@ -157,12 +163,22 @@ func (js *jsonSampleImporter) Queries(bucket string) bool {
 
 			// TODO: Need to account for arguments in N1QLQuery structure
 			for _, queryDef := range stmts.Statements {
-				query := gocb.NewN1qlQuery(queryDef.Statement)
-				query.Consistency(gocb.NotBounded)
-				_, err := b.ExecuteN1qlQuery(query, nil)
-				if err != nil {
-					clog.Error(err)
-					succeeded = false
+				sendQuery := true
+				for sendQuery {
+					sendQuery = false
+					query := gocb.NewN1qlQuery(queryDef.Statement)
+					query.Consistency(gocb.NotBounded)
+					_, err := b.ExecuteN1qlQuery(query, nil)
+					if err != nil {
+						if waitForN1QL && err.Error() == "No available N1QL nodes." {
+							clog.Log("N1QL Service not ready yet, retrying")
+							time.Sleep(1 * time.Second)
+							sendQuery = true
+						} else {
+							clog.Error(err)
+							succeeded = false
+						}
+					}
 				}
 			}
 		}

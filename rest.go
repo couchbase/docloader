@@ -357,6 +357,39 @@ func (r *RestClient) viewsHost() (string, error) {
 	return "", ServiceNotAvailableError{"views"}
 }
 
+func (r *RestClient) hasN1qlService() (bool, error) {
+	uri := r.host + "/pools/default"
+	resp, err := r.executeGet(uri)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	type overlay struct {
+		Nodes []struct {
+			Services []string `json:"services"`
+		} `json:"nodes"`
+	}
+
+	var data overlay
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	err = decoder.Decode(&data)
+	if err != nil {
+		return false, &RestClientError{"GET", uri, err}
+	}
+
+	for _, node := range data.Nodes {
+		for _, service := range node.Services {
+			if service == "n1ql" {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
 func (r *RestClient) executeGet(uri string) (*http.Response, error) {
 	method := "GET"
 	req, err := http.NewRequest(method, uri, nil)
