@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -78,12 +79,12 @@ func (js *jsonSampleImporter) CreateBucket(bucket string, memQuota int) bool {
 
 func (js *jsonSampleImporter) Views(bucket string) bool {
 	succeeded := true
-	docsDir := filepath.Join(js.sample.Basepath, "design_docs")
 	for _, f := range js.sample.Files {
 		if f.IsDir() {
 			continue
 		}
 
+		docsDir := JoinPathWithSep(f.Seperator(), js.sample.Basepath, "design_docs")
 		if strings.HasPrefix(f.Path(), docsDir) {
 			if filepath.Base(f.Path()) == "indexes.json" {
 				continue
@@ -142,12 +143,12 @@ func (js *jsonSampleImporter) Queries(bucket string) bool {
 	}
 
 	succeeded := true
-	docsDir := filepath.Join(js.sample.Basepath, "design_docs")
 	for _, f := range js.sample.Files {
 		if f.IsDir() {
 			continue
 		}
 
+		docsDir := JoinPathWithSep(f.Seperator(), js.sample.Basepath, "design_docs")
 		if strings.HasPrefix(f.Path(), docsDir) {
 			if filepath.Base(f.Path()) != "indexes.json" {
 				continue
@@ -220,12 +221,12 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 	clog.Log("Loading data into the %s bucket", bucket)
 
 	go func() {
-		docsDir := filepath.Join(js.sample.Basepath, "docs")
 		for _, f := range js.sample.Files {
 			if f.IsDir() {
 				continue
 			}
 
+			docsDir := JoinPathWithSep(f.Seperator(), js.sample.Basepath, "docs")
 			if strings.HasPrefix(f.Path(), docsDir) {
 				key := filepath.Base(f.Path())
 				value, err := f.ReadFile()
@@ -362,6 +363,7 @@ func (r *SamplesReader) Close() error {
 
 type SamplesFile interface {
 	Path() string
+	Seperator() string
 	ReadFile() ([]byte, error)
 	IsDir() bool
 }
@@ -372,6 +374,10 @@ type SamplesDirFile struct {
 
 func (f *SamplesDirFile) Path() string {
 	return f.path
+}
+
+func (f *SamplesDirFile) Seperator() string {
+	return (string)(filepath.Separator)
 }
 
 func (f *SamplesDirFile) IsDir() bool {
@@ -396,6 +402,10 @@ func (f *SamplesZipFile) Path() string {
 	return f.file.Name
 }
 
+func (f *SamplesZipFile) Seperator() string {
+	return "/"
+}
+
 func (f *SamplesZipFile) IsDir() bool {
 	return f.file.FileInfo().IsDir()
 }
@@ -417,4 +427,14 @@ type DirCloser struct {
 
 func (d DirCloser) Close() error {
 	return nil
+}
+
+func JoinPathWithSep(sep string, elem ...string) string {
+	for i, e := range elem {
+		if e != "" {
+			return path.Clean(strings.Join(elem[i:], sep))
+		}
+	}
+
+	return ""
 }
