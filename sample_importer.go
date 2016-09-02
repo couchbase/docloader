@@ -78,10 +78,14 @@ func (js *jsonSampleImporter) CreateBucket(bucket string, memQuota int) bool {
 
 func (js *jsonSampleImporter) Views(bucket string) bool {
 	succeeded := true
+	docsDir := filepath.Join(js.sample.Basepath, "design_docs")
 	for _, f := range js.sample.Files {
-		doc := strings.Split(f.Path(), "/design_docs/")
-		if len(doc) == 2 && len(doc[1]) > 0 {
-			if doc[1] == "indexes.json" {
+		if f.IsDir() {
+			continue
+		}
+
+		if strings.HasPrefix(f.Path(), docsDir) {
+			if filepath.Base(f.Path()) == "indexes.json" {
 				continue
 			}
 
@@ -138,10 +142,14 @@ func (js *jsonSampleImporter) Queries(bucket string) bool {
 	}
 
 	succeeded := true
+	docsDir := filepath.Join(js.sample.Basepath, "design_docs")
 	for _, f := range js.sample.Files {
-		doc := strings.Split(f.Path(), "/design_docs/")
-		if len(doc) == 2 && len(doc[1]) > 0 {
-			if doc[1] != "indexes.json" {
+		if f.IsDir() {
+			continue
+		}
+
+		if strings.HasPrefix(f.Path(), docsDir) {
+			if filepath.Base(f.Path()) != "indexes.json" {
 				continue
 			}
 
@@ -212,10 +220,14 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 	clog.Log("Loading data into the %s bucket", bucket)
 
 	go func() {
+		docsDir := filepath.Join(js.sample.Basepath, "docs")
 		for _, f := range js.sample.Files {
-			doc := strings.Split(f.Path(), "/docs/")
-			if len(doc) == 2 && len(doc[1]) > 0 {
-				key := doc[1]
+			if f.IsDir() {
+				continue
+			}
+
+			if strings.HasPrefix(f.Path(), docsDir) {
+				key := filepath.Base(f.Path())
 				value, err := f.ReadFile()
 				if err != nil {
 					clog.Error(err)
@@ -223,7 +235,7 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 					continue
 				}
 
-				if strings.HasSuffix(key, ".json") {
+				if filepath.Ext(f.Path()) == ".json" {
 					key = key[:len(key)-5]
 				}
 
@@ -298,8 +310,9 @@ func (js *jsonSampleImporter) Close() {
 }
 
 type SamplesReader struct {
-	closer io.Closer
-	Files  []SamplesFile
+	closer   io.Closer
+	Basepath string
+	Files    []SamplesFile
 }
 
 func OpenSamplesReader(path string) (*SamplesReader, error) {
@@ -309,20 +322,25 @@ func OpenSamplesReader(path string) (*SamplesReader, error) {
 			return nil, err
 		}
 
+		filename := filepath.Base(path)
 		rv := &SamplesReader{
-			closer: closer,
-			Files:  make([]SamplesFile, len(closer.File)),
+			closer:   closer,
+			Basepath: strings.TrimSuffix(filename, filepath.Ext(filename)),
+			Files:    make([]SamplesFile, len(closer.File)),
 		}
 
 		for i, file := range closer.File {
-			rv.Files[i] = &SamplesZipFile{file}
+			rv.Files[i] = &SamplesZipFile{
+				file: file,
+			}
 		}
 
 		return rv, nil
 	} else {
 		rv := &SamplesReader{
-			closer: DirCloser{},
-			Files:  make([]SamplesFile, 0),
+			closer:   DirCloser{},
+			Basepath: path,
+			Files:    make([]SamplesFile, 0),
 		}
 		err := filepath.Walk(path, rv.addFile)
 		return rv, err
@@ -345,6 +363,7 @@ func (r *SamplesReader) Close() error {
 type SamplesFile interface {
 	Path() string
 	ReadFile() ([]byte, error)
+	IsDir() bool
 }
 
 type SamplesDirFile struct {
@@ -353,6 +372,16 @@ type SamplesDirFile struct {
 
 func (f *SamplesDirFile) Path() string {
 	return f.path
+}
+
+func (f *SamplesDirFile) IsDir() bool {
+	if src, err := os.Stat(f.path); err != nil {
+		return false
+	} else if src.IsDir() {
+		return true
+	}
+
+	return false
 }
 
 func (f *SamplesDirFile) ReadFile() ([]byte, error) {
@@ -365,6 +394,10 @@ type SamplesZipFile struct {
 
 func (f *SamplesZipFile) Path() string {
 	return f.file.Name
+}
+
+func (f *SamplesZipFile) IsDir() bool {
+	return f.file.FileInfo().IsDir()
 }
 
 func (f *SamplesZipFile) ReadFile() ([]byte, error) {
