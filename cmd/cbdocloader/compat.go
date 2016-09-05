@@ -78,7 +78,7 @@ func isOption(arg string) (bool, bool) {
 }
 
 func isFlag(arg string) bool {
-	flags := []string{"-v", "--verbose"}
+	flags := []string{"-v", "--verbose", "-h", "--help"}
 	for _, flag := range flags {
 		if flag == arg {
 			return true
