@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.19.2 -->
-<!-- CreationDate: Fri Sep  2 10:41:52 2016 -->
+<!-- CreationDate: Mon Sep  5 14:44:03 2016 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -61,7 +61,7 @@
 
 <p style="margin-left:11%; margin-top: 1em">cbdocloader
 loads Couchbase sample datasets into Couchbase Server.
-Samples data sets are zip files provided by Couchbase that
+Sample data sets are zip files provided by Couchbase that
 contain documents and index definitions. These datasets are
 meant for users to explore the various Couchbase features
 before loading in their own datasets.</p>
@@ -80,7 +80,7 @@ command.</p>
 &minus;c,&minus;&minus;cluster &lt;host&gt;</p>
 
 <p style="margin-left:17%;">The hostname of one of the
-nodes in the cluster to back up. See the Host Formats
+nodes in the cluster to load data into. See the Host Formats
 section below for hostname specification details.</p>
 
 
@@ -114,7 +114,7 @@ existing bucket.</p>
 
 <p style="margin-left:17%;">The amount of memory to assign
 to the buckets cache. If the bucket already exists then this
-parameter is ignore.</p>
+parameter is ignored.</p>
 
 
 <p style="margin-left:11%; margin-top: 1em">&minus;d,&minus;&minus;dataset</p>
@@ -150,8 +150,8 @@ process.</p>
 
 
 <p style="margin-left:11%; margin-top: 1em">When specifying
-a host for the <i>backup</i> command the following formats
-are expected:</p>
+a host for the <i>cbdoclader</i> command the following
+formats are expected:</p>
 
 <table width="100%" border=0 rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -234,11 +234,11 @@ example below we will use 4 threads.</p>
 -t 4</p>
 
 <p style="margin-left:11%; margin-top: 1em">The cbdocloader
-command can also be used to load data drom a folder. This
+command can also be used to load data from a folder. This
 folder must contain files that correspond to the samples
-format however. See the SAMPLE DATA FORMAT section below for
-more information onthis format. Below is an example of how
-to load data from a folder /home/alice/census-sample</p>
+format. See the SAMPLE DATA FORMAT section below for more
+information on this format. Below is an example of how to
+load data from a folder /home/alice/census-sample</p>
 
 <p style="margin-left:11%; margin-top: 1em">$ cbdocloader
 -c couchbase://127.0.0.1 -u Administrator -p password -m
@@ -251,30 +251,136 @@ to load data from a folder /home/alice/census-sample</p>
 
 <p style="margin-left:11%; margin-top: 1em">The cbdocloader
 command is used to load data from zip files or folders that
-correspond to the Couchbase sample data format. Each folder
-or zip file should contain two folders. The first folder
-&quot;docs&quot; will contain all of the documents to load
-into Couchbase. Each document should be in a separate file
-in this folder. Each file should contain a single JSON
-document that corresponds to the value. The key name for the
+correspond to the Couchbase sample data format. An example
+of this format is below.</p>
+
+<p style="margin-left:11%; margin-top: 1em">+ sample_folder
+<br>
++ design_docs <br>
+indexes.json <br>
+design_doc.json <br>
++ docs <br>
+document1.json <br>
+document2.json <br>
+document3.json <br>
+document4.json</p>
+
+<p style="margin-left:11%; margin-top: 1em">The top level
+directory can be given any name and will always contain two
+folders. The &quot;design_docs&quot; folder is where index
+definitions are kept. This folder will contain zero or more
+json files that contain the various indexes that should be
+created when the sample dataset is loaded. Global Secondary
+Indexes (GSI) should always be in a file named
+&quot;indexes.json&quot;. Below is an example of the format
+for defining GSI indexes.</p>
+
+<p style="margin-left:11%; margin-top: 1em">{ <br>
+&quot;statements&quot;: [ <br>
+{ <br>
+&quot;statement&quot;: &quot;CREATE PRIMARY INDEX on
+&lsquo;bucket1&lsquo;&quot;, <br>
+&quot;args&quot;: null <br>
+}, <br>
+{ <br>
+&quot;statement&quot;: &quot;CREATE INDEX by_type on
+&lsquo;bucket1&lsquo;(name) WHERE
+_type=&rsquo;User&rsquo;&quot; <br>
+&quot;args&quot;: null <br>
+} <br>
+] <br>
+}</p>
+
+<p style="margin-left:11%; margin-top: 1em">GSI indexes are
+defined as a JSON document where each index definition is
+contained in a list called &quot;statements&quot;. Each
+element in the list is an object that contains two keys. The
+&quot;statement&quot; key contains that actual index
+definition and the &quot;args&quot; key is used if the
+statement contains any positional arguments.</p>
+
+<p style="margin-left:11%; margin-top: 1em">All other files
+in the design_docs folder are used to define view design
+documents and each design document should be put into a
+separate file. These files can be named anything, but should
+always have the &quot;.json&quot; file extension. Below is
+an example of a view design document definition.</p>
+
+<p style="margin-left:11%; margin-top: 1em">{ <br>
+&quot;_id&quot;: &quot;_design/players&quot; <br>
+&quot;views&quot;: { <br>
+&quot;total_experience&quot;: { <br>
+&quot;map&quot;: &quot;function(doc,meta){if(doc.jsonType ==
+<br>
+&quot;reduce&quot;: &quot;_sum&quot; <br>
+}, <br>
+&quot;player_list&quot;: { <br>
+&quot;map&quot;: &quot;function (doc, meta){if(doc.jsonType
+== <br>
+} <br>
+} <br>
+}</p>
+
+<p style="margin-left:11%; margin-top: 1em">In the document
+above, the &quot;_id&quot; field is used to name the design
+document. This name should always be prefixed with
+&quot;_design/&quot;. The other field in the top level of
+the document is the &quot;views&quot; field. This field
+contains a map of view definitions. The key for each element
+in the map is the name of the view. Each view must contain a
+&quot;map&quot; element that defines the map function and
+may also contain an optional &quot;reduce&quot; element that
+defines the reduce function.</p>
+
+<p style="margin-left:11%; margin-top: 1em">View design
+documents support map-reduce views as well as spatial views.
+Below is an example of a spatial view definition. Spatial
+views follow similar rules as the map-reduce views
+above.</p>
+
+<p style="margin-left:11%; margin-top: 1em">{ <br>
+&quot;_id&quot;: &quot;_design/spatial&quot;</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+
+
+<p valign="top">&quot;spatial&quot;: {
+&quot;position&quot;: &quot;&lt;spatial view function
+definition&gt;&quot;, &quot;location&quot;:
+&quot;&lt;spatial view function definition&gt;&quot;</p></table>
+
+<p style="margin-left:11%;">} <br>
+}</p>
+
+<p style="margin-left:11%; margin-top: 1em">Note that
+spatial views only use a single function to define the
+index. As a result this function is defined as the value of
+the spatial views name.</p>
+
+<p style="margin-left:11%; margin-top: 1em">The other
+folder at the top level directory of a sample data folder is
+the &quot;docs&quot; folder This folder will contain all of
+the documents to load into Couchbase. Each document in this
+folder is contained in a separate file and each file should
+contain a single JSON document. The key name for the
 document will be the name of the file. Each file should also
 have a &quot;.json&quot; file extension which will be
-removed from the key name when the data is loaded.</p>
-
-<p style="margin-left:11%; margin-top: 1em">The second
-folder is the &quot;design_docs&quot; folder and this folder
-contains all of the view, index, and full text index
-definitions. The design docs folder should contain various
-files containing view, secondary and full-text index
-definitions. Each index definition type should be put into a
-spearate file. The file names for each of definition files
-are not taken into account.</p>
+removed from the key name when the data is loaded. Since
+each document to be loaded into Couchbase is in a separate
+file there can potentially be a large amount of files. The
+docs folder allows subfolders to help categorize
+documents.</p>
 
 <a name="ENVIRONMENT AND CONFIGURATION VARIABLES"></a>
 <h2>ENVIRONMENT AND CONFIGURATION VARIABLES</h2>
 
 
-<p style="margin-left:11%; margin-top: 1em">(None)</p>
+<p style="margin-left:11%; margin-top: 1em">CB_USERNAME -
+The username of the Couchbase cluster to connect to.
+CB_PASSWORD - The password of the Couchbase cluster to
+connect to.</p>
 
 <a name="SEE ALSO"></a>
 <h2>SEE ALSO</h2>

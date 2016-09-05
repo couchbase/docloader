@@ -2,12 +2,12 @@
 .\"     Title: cbdocloader
 .\"    Author: Couchbase
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 02/08/2016
+.\"      Date: 09/08/2016
 .\"    Manual: Couchbase Docloader Manual
 .\"    Source: cbdocloader 1.0.0
 .\"  Language: English
 .\"
-.TH "CBDOCLOADER" "1" "02/08/2016" "cbdocloader 1\&.0\&.0" "cbdocloader Manual"
+.TH "CBDOCLOADER" "1" "09/08/2016" "cbdocloader 1\&.0\&.0" "cbdocloader Manual"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,7 +38,7 @@ cbdocloader \- Loads sample datasets into Couchbase
 .SH "DESCRIPTION"
 .PP
 cbdocloader loads Couchbase sample datasets into Couchbase Server\&.
-Samples data sets are zip files provided by Couchbase that contain documents and index definitions\&.
+Sample data sets are zip files provided by Couchbase that contain documents and index definitions\&.
 These datasets are meant for users to explore the various Couchbase features before loading in their own datasets\&.
 .SH "OPTIONS"
 .PP
@@ -47,7 +47,7 @@ Below are a list of required and optional parameters for the cbdocloader command
 .PP
 \-c,\-\-cluster <host>
 .RS 4
-The hostname of one of the nodes in the cluster to back up\&.
+The hostname of one of the nodes in the cluster to load data into\&.
 See the Host Formats section below for hostname specification details\&.
 .RE
 .PP
@@ -72,7 +72,7 @@ If the bucket already exists then bucket creation is skipped and data is loaded 
 \-m,\-\-bucket-quota
 .RS 4
 The amount of memory to assign to the buckets cache\&.
-If the bucket already exists then this parameter is ignore\&.
+If the bucket already exists then this parameter is ignored\&.
 .RE
 .PP
 \-d,\-\-dataset
@@ -97,7 +97,7 @@ This flag is useful for debugging errors in the data loading process\&.
 .RE
 .SH "HOST FORMATS"
 .PP
-When specifying a host for the \fIbackup\fR command the following formats are expected:
+When specifying a host for the \fIcbdoclader\fR command the following formats are expected:
 .IP \(bu 4
 couchbase://<addr>
 .IP \(bu 4
@@ -124,9 +124,9 @@ In the example below we will use 4 threads\&.
      -b travel-sample -d /opt/couchbase/samples/travel-sample.zip -t 4
 .DE
 .PP
-The cbdocloader command can also be used to load data drom a folder\&.
-This folder must contain files that correspond to the samples format however\&.
-See the SAMPLE DATA FORMAT section below for more information onthis format\&.
+The cbdocloader command can also be used to load data from a folder\&.
+This folder must contain files that correspond to the samples format\&.
+See the SAMPLE DATA FORMAT section below for more information on this format\&.
 Below is an example of how to load data from a folder /home/alice/census-sample
 .sp
 .DS 4
@@ -136,20 +136,99 @@ Below is an example of how to load data from a folder /home/alice/census-sample
 .SH "SAMPLE DATA FORMAT"
 .PP
 The cbdocloader command is used to load data from zip files or folders that correspond to the Couchbase sample data format\&.
-Each folder or zip file should contain two folders\&.
-The first folder "docs" will contain all of the documents to load into Couchbase\&.
-Each document should be in a separate file in this folder\&.
-Each file should contain a single JSON document that corresponds to the value\&.
+An example of this format is below.
+.sp
+.DS 4
+    + sample_folder
+      + design_docs
+        indexes.json
+        design_doc.json
+      + docs
+        document1.json
+        document2.json
+        document3.json
+        document4.json
+.DE
+.PP
+The top level directory can be given any name and will always contain two folders\&.
+The "design_docs" folder is where index definitions are kept\&.
+This folder will contain zero or more json files that contain the various indexes that should be created when the sample dataset is loaded\&.
+Global Secondary Indexes (GSI) should always be in a file named "indexes.json"\&.
+Below is an example of the format for defining GSI indexes.
+.sp
+.DS 4
+    {
+      "statements": [
+        {
+          "statement": "CREATE PRIMARY INDEX on `bucket1`",
+          "args": null
+        },
+        {
+          "statement": "CREATE INDEX by_type on `bucket1`(name) WHERE _type='User'" 
+          "args": null
+        }
+      ]
+    }
+.PP
+GSI indexes are defined as a JSON document where each index definition is contained in a list called "statements"\&.
+Each element in the list is an object that contains two keys\&.
+The "statement" key contains that actual index definition and the "args" key is used if the statement contains any positional arguments\&.
+.PP
+All other files in the design_docs folder are used to define view design documents and each design document should be put into a separate file\&.
+These files can be named anything, but should always have the ".json" file extension\&.
+Below is an example of a view design document definition\&.
+.sp
+.DS 4
+    {
+      "_id": "_design/players"
+      "views": {
+        "total_experience": {
+          "map": "function(doc,meta){if(doc.jsonType == \"player\" && doc.experience){emit(doc.experience, null);}}"
+          "reduce": "_sum"
+        },
+        "player_list": {
+          "map": "function (doc, meta){if(doc.jsonType == \"player\") {emit(meta.id, null);}}"
+        }
+      }
+    }
+.DE
+.PP
+In the document above, the "_id" field is used to name the design document\&.
+This name should always be prefixed with "_design/"\&.
+The other field in the top level of the document is the "views" field\&.
+This field contains a map of view definitions\&.
+The key for each element in the map is the name of the view\&.
+Each view must contain a "map" element that defines the map function and may also contain an optional "reduce" element that defines the reduce function\&.
+.PP
+View design documents support map-reduce views as well as spatial views\&.
+Below is an example of a spatial view definition\&.
+Spatial views follow similar rules as the map-reduce views above\&.
+
+.sp
+.DS 4
+    {
+      "_id": "_design/spatial"
+      "spatial": {
+	"position": "<spatial view function definition>",
+	"location": "<spatial view function definition>"
+      }
+    }
+.DE
+.PP
+Note that spatial views only use a single function to define the index\&.
+As a result this function is defined as the value of the spatial views name\&.
+.PP
+The other folder at the top level directory of a sample data folder is the "docs" folder\*.
+This folder will contain all of the documents to load into Couchbase\&.
+Each document in this folder is contained in a separate file and each file should contain a single JSON document\&.
 The key name for the document will be the name of the file\&.
 Each file should also have a ".json" file extension which will be removed from the key name when the data is loaded\&.
-.PP
-The second folder is the "design_docs" folder and this folder contains all of the view, index, and full text index definitions\&.
-The design docs folder should contain various files containing view, secondary and full-text index definitions\&.
-Each index definition type should be put into a spearate file\&.
-The file names for each of definition files are not taken into account\&.
+Since each document to be loaded into Couchbase is in a separate file there can potentially be a large amount of files\&.
+The docs folder allows subfolders to help categorize documents\&.
 .SH "ENVIRONMENT AND CONFIGURATION VARIABLES"
 .PP
-(None)
+CB_USERNAME - The username of the Couchbase cluster to connect to\&.
+CB_PASSWORD - The password of the Couchbase cluster to connect to\&.
 .SH "SEE ALSO"
 .PP
 \fBcbimport\fR(1), \fBcbexport\fR(1)
