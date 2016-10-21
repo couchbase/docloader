@@ -19,6 +19,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -290,7 +291,13 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 					sentPair := false
 					for !sentPair {
 						sentPair = true
-						_, err = b.Upsert(pair.Key, pair.Value, 0)
+
+						var js map[string]interface{}
+						if err := json.Unmarshal(pair.Value, &js); err != nil {
+							clog.Error(fmt.Errorf("File %s.json does not contain valid JSON", pair.Key))
+						}
+
+						_, err = b.Upsert(pair.Key, js, 0)
 						if err != nil {
 							if err == gocb.ErrTmpFail || err == gocb.ErrOutOfMemory {
 								time.Sleep(250 * time.Millisecond)
