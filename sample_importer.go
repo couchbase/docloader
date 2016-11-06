@@ -293,7 +293,9 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 						sentPair = true
 
 						var js map[string]interface{}
-						if err := json.Unmarshal(pair.Value, &js); err != nil {
+						decoder := json.NewDecoder(bytes.NewReader(pair.Value))
+						decoder.UseNumber()
+						if err := decoder.Decode(&js); err != nil {
 							clog.Error(fmt.Errorf("File %s.json does not contain valid JSON", pair.Key))
 						}
 
