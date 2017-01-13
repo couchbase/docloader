@@ -141,8 +141,14 @@ func (js *jsonSampleImporter) Queries(bucket string) bool {
 		return false
 	}
 
+	password, err := js.rest.GetBucketPassword(bucket)
+	if err != nil {
+		clog.Error(err)
+		return false
+	}
+
 	c, _ := gocb.Connect(js.host)
-	b, err := c.OpenBucket(bucket, "")
+	b, err := c.OpenBucket(bucket, password)
 	if err != nil {
 		clog.Error(err)
 		return false
@@ -208,8 +214,14 @@ func (js *jsonSampleImporter) Queries(bucket string) bool {
 }
 
 func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
+	password, err := js.rest.GetBucketPassword(bucket)
+	if err != nil {
+		clog.Error(err)
+		return false
+	}
+
 	c, _ := gocb.Connect(js.host)
-	b, err := c.OpenBucket(bucket, "")
+	b, err := c.OpenBucket(bucket, password)
 	if err != nil {
 		clog.Error(err)
 		return false
@@ -278,7 +290,7 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 		go func() {
 			defer wg.Done()
 			c, _ := gocb.Connect(js.host)
-			b, err := c.OpenBucket(bucket, "")
+			b, err := c.OpenBucket(bucket, password)
 			if err != nil {
 				clog.Error(err)
 				return

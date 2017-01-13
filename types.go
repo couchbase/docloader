@@ -39,7 +39,7 @@ type N1QLQuery struct {
 type BucketSettings struct {
 	Name           string `json:"name"`
 	BucketType     string `json:"bucketType"`
-	Password       string `json:"-"`
+	Password       string `json:"saslPassword"`
 	ProxyPort      int    `json:"proxyPort"`
 	EvictionPolicy string `json:"evictionPolicy"`
 	RAMQuota       int    `json:"ramQuota"`

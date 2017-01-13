@@ -142,6 +142,26 @@ func (r *RestClient) PutViews(bucket, ddocName string, ddoc []byte) error {
 	return nil
 }
 
+func (r *RestClient) GetBucketPassword(name string) (string, error) {
+	url := r.host + "/pools/default/buckets/" + name
+	resp, err := r.executeGet(url)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	var bs BucketSettings
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	err = decoder.Decode(&bs)
+	if err != nil {
+		return "", &RestClientError{"GET", url, err}
+	}
+
+	return bs.Password, nil
+}
+
 func (r *RestClient) BucketExists(name string) (bool, error) {
 	url := r.host + "/pools/default/buckets"
 	resp, err := r.executeGet(url)
