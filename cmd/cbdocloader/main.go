@@ -101,11 +101,6 @@ func (c *Context) Run() {
 }
 
 func main() {
-	allow_skip_auth := false
-	if os.Getenv("CBDOCLOADER_SKIP_AUTH") == "true" {
-		allow_skip_auth = true
-	}
-
 	manPath, err := man.ManPath(installType)
 	if err != nil {
 		clog.Error(err)
@@ -132,14 +127,14 @@ func main() {
 				/* Destination  */ &ctx.username,
 				/* Default      */ "",
 				/* Deprecated   */ []string{},
-				/* Required     */ !allow_skip_auth,
+				/* Required     */ true,
 				/* Hidden       */ false,
 			),
 			cbflag.PasswordFlag( // Specified as -p or --pasword
 				/* Destination  */ &ctx.password,
 				/* Default      */ "",
 				/* Deprecated   */ []string{},
-				/* Required     */ !allow_skip_auth,
+				/* Required     */ true,
 				/* Hidden       */ false,
 			),
 			cbflag.StringFlag(
