@@ -95,8 +95,7 @@ func (js *jsonSampleImporter) Views(bucket string) bool {
 			continue
 		}
 
-		docsDir := JoinPathWithSep(f.Seperator(), js.sample.Basepath, "design_docs")
-		if strings.HasPrefix(f.Path(), docsDir) {
+		if strings.HasPrefix(f.Path(), js.sample.DDocsPath) {
 			if filepath.Base(f.Path()) == "indexes.json" {
 				continue
 			}
@@ -165,8 +164,7 @@ func (js *jsonSampleImporter) Queries(bucket string) bool {
 			continue
 		}
 
-		docsDir := JoinPathWithSep(f.Seperator(), js.sample.Basepath, "design_docs")
-		if strings.HasPrefix(f.Path(), docsDir) {
+		if strings.HasPrefix(f.Path(), js.sample.DDocsPath) {
 			if filepath.Base(f.Path()) != "indexes.json" {
 				continue
 			}
@@ -249,8 +247,7 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 				continue
 			}
 
-			docsDir := JoinPathWithSep(f.Seperator(), js.sample.Basepath, "docs")
-			if strings.HasPrefix(f.Path(), docsDir) {
+			if strings.HasPrefix(f.Path(), js.sample.DDocsPath) {
 				key := filepath.Base(f.Path())
 				value, err := f.ReadFile()
 				if err != nil {
@@ -342,9 +339,12 @@ func (js *jsonSampleImporter) Close() {
 }
 
 type SamplesReader struct {
-	closer   io.Closer
-	Basepath string
-	Files    []SamplesFile
+	closer       io.Closer
+	HasDocsPath  bool
+	HasDDocsPath bool
+	DocsPath     string
+	DDocsPath    string
+	Files        []SamplesFile
 }
 
 func OpenSamplesReader(path string) (*SamplesReader, error) {
@@ -354,34 +354,101 @@ func OpenSamplesReader(path string) (*SamplesReader, error) {
 			return nil, err
 		}
 
-		filename := filepath.Base(path)
 		rv := &SamplesReader{
-			closer:   closer,
-			Basepath: strings.TrimSuffix(filename, filepath.Ext(filename)),
-			Files:    make([]SamplesFile, len(closer.File)),
+			closer:       closer,
+			HasDocsPath:  false,
+			HasDDocsPath: false,
+			DocsPath:     "",
+			DDocsPath:    "",
+			Files:        make([]SamplesFile, len(closer.File)),
 		}
 
 		for i, file := range closer.File {
+			if file.FileInfo().IsDir() {
+				dname := file.Name
+				if strings.HasSuffix(dname, "/") {
+					dname = dname[0 : len(dname)-1]
+				}
+				_, dir := filepath.Split(dname)
+
+				if dir == "docs" {
+					if rv.HasDocsPath {
+						return nil, fmt.Errorf("Samples zip file may only contain one docs directory")
+					}
+					rv.HasDocsPath = true
+					rv.DocsPath = file.Name
+				}
+
+				if dir == "design_docs" {
+					if rv.HasDDocsPath {
+						return nil, fmt.Errorf("Samples zip file may only contain one design_docs directory")
+					}
+					rv.HasDDocsPath = true
+					rv.DDocsPath = file.Name
+				}
+			}
 			rv.Files[i] = &SamplesZipFile{
 				file: file,
 			}
 		}
 
+		if !rv.HasDocsPath && !rv.HasDDocsPath {
+			rv.HasDocsPath = true
+			rv.DocsPath = "/"
+		}
+
 		return rv, nil
 	} else {
 		rv := &SamplesReader{
-			closer:   DirCloser{},
-			Basepath: path,
-			Files:    make([]SamplesFile, 0),
+			closer:       DirCloser{},
+			HasDocsPath:  false,
+			HasDDocsPath: false,
+			DocsPath:     "",
+			DDocsPath:    "",
+			Files:        make([]SamplesFile, 0),
 		}
 		err := filepath.Walk(path, rv.addFile)
-		return rv, err
+		if err != nil {
+			return nil, err
+		}
+
+		if !rv.HasDocsPath && !rv.HasDDocsPath {
+			rv.HasDocsPath = true
+			rv.DocsPath = path
+		}
+
+		return rv, nil
 	}
 }
 
 func (r *SamplesReader) addFile(path string, f os.FileInfo, err error) error {
 	if err == nil {
 		r.Files = append(r.Files, &SamplesDirFile{path})
+
+		if f.IsDir() {
+			dname := path
+			if strings.HasSuffix(dname, string(os.PathSeparator)) {
+				dname = dname[0 : len(dname)-1]
+			}
+			_, dir := filepath.Split(dname)
+
+			if dir == "docs" {
+				if r.HasDocsPath {
+					return fmt.Errorf("Samples folder may only contain one docs directory")
+				}
+				r.HasDocsPath = true
+				r.DocsPath = path
+			}
+
+			if dir == "design_docs" {
+				if r.HasDDocsPath {
+					return fmt.Errorf("Samples folder may only contain one design_docs directory")
+				}
+				r.HasDDocsPath = true
+				r.DDocsPath = path
+			}
+		}
+
 	} else {
 		clog.Error(err)
 	}
