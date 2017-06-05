@@ -34,6 +34,8 @@ import (
 	"github.com/couchbase/gocb"
 )
 
+const maxConsecutiveTimeouts int = 10
+
 type jsonSampleImporter struct {
 	host   string
 	path   string
@@ -294,6 +296,7 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 			}
 			defer b.Close()
 
+			timeoutCount := 0
 			for true {
 				select {
 				case pair := <-sendQ:
@@ -316,9 +319,18 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 							} else if err == gocb.ErrTmpFail || err == gocb.ErrOutOfMemory {
 								time.Sleep(250 * time.Millisecond)
 								sentPair = false
+								timeoutCount = 0
 							} else {
+								if timeoutCount >= maxConsecutiveTimeouts {
+									clog.Log("%d consecutive timeouts occurred, client exiting",
+										maxConsecutiveTimeouts)
+									return
+								}
+								timeoutCount++
 								clog.Error(err)
 							}
+						} else {
+							timeoutCount = 0
 						}
 					}
 					atomic.AddUint64(&inserted, 1)
