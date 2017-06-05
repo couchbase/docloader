@@ -310,7 +310,10 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 
 						_, err = b.Upsert(pair.Key, js, 0)
 						if err != nil {
-							if err == gocb.ErrTmpFail || err == gocb.ErrOutOfMemory {
+							if err == gocb.ErrNetwork {
+								clog.Error(err)
+								return
+							} else if err == gocb.ErrTmpFail || err == gocb.ErrOutOfMemory {
 								time.Sleep(250 * time.Millisecond)
 								sentPair = false
 							} else {
