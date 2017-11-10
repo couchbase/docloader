@@ -91,6 +91,10 @@ func (js *jsonSampleImporter) CreateBucket(bucket string, memQuota int) bool {
 }
 
 func (js *jsonSampleImporter) Views(bucket string) bool {
+	if !js.sample.HasDDocsPath {
+		return true
+	}
+
 	succeeded := true
 	for _, f := range js.sample.Files {
 		if f.IsDir() {
@@ -218,6 +222,10 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 	if err != nil {
 		clog.Error(err)
 		return false
+	}
+
+	if !js.sample.HasDocsPath {
+		return true
 	}
 
 	c, _ := gocb.Connect(js.host)
