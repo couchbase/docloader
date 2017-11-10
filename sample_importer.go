@@ -257,7 +257,7 @@ func (js *jsonSampleImporter) IterateDocs(bucket string, threads int) bool {
 				continue
 			}
 
-			if strings.HasPrefix(f.Path(), js.sample.DocsPath) {
+			if strings.HasPrefix(f.Path(), js.sample.DocsPath) || js.sample.DocsPath == f.Seperator() {
 				key := filepath.Base(f.Path())
 				value, err := f.ReadFile()
 				if err != nil {
