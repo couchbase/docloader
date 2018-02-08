@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -346,6 +347,10 @@ func (r *RestClient) GetClusterNodes() ([]Node, error) {
 	hostname, _, err := net.SplitHostPort(parsed.Host)
 	if err != nil {
 		return nil, &RestClientError{"GET", uri, err}
+	}
+	//If the hostname is a raw IPv6 address rebuild it with brackets
+	if strings.ContainsAny(hostname, ":") {
+		hostname = "[" + hostname + "]"
 	}
 
 	for i := 0; i < len(data.NodesExt); i++ {
