@@ -356,6 +356,9 @@ func (r *RestClient) GetClusterNodes() ([]Node, error) {
 	for i := 0; i < len(data.NodesExt); i++ {
 		if data.NodesExt[i].Hostname == "" {
 			data.NodesExt[i].Hostname = hostname
+		//If the hostname is a raw IPv6 address rebuild it with brackets
+		} else if strings.ContainsAny(data.NodesExt[i].Hostname, ":") {
+			data.NodesExt[i].Hostname = "[" + data.NodesExt[i].Hostname + "]"
 		}
 	}
 
