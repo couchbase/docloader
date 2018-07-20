@@ -96,7 +96,7 @@ func (c *Context) Run() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Data loaded succesfully\n")
+	fmt.Printf("Data loaded successfully\n")
 	os.Exit(0)
 }
 
