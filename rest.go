@@ -339,8 +339,7 @@ func (r *RestClient) GetClusterNodes() ([]Node, error) {
 	if err != nil {
 		return nil, &RestClientError{"GET", uri, err}
 	}
-
-	parsed, _ := url.Parse(r.host)
+	parsed, err := url.Parse(r.host)
 	if err != nil {
 		return nil, &RestClientError{"GET", uri, err}
 	}
