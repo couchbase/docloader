@@ -40,6 +40,7 @@ type Context struct {
 }
 
 func (c *Context) Run() {
+	clog.DisableColor()
 	if !c.verbose {
 		clog.SetFlags(0)
 		clog.SetOutput(ioutil.Discard)
