@@ -370,6 +370,14 @@ type SamplesReader struct {
 	Files        []SamplesFile
 }
 
+type SampleReaderError struct {
+	reason string
+}
+
+func (e *SampleReaderError) Error() string {
+	return e.reason
+}
+
 func OpenSamplesReader(path string) (*SamplesReader, error) {
 	if strings.HasSuffix(path, ".zip") {
 		closer, err := zip.OpenReader(path)
@@ -422,6 +430,15 @@ func OpenSamplesReader(path string) (*SamplesReader, error) {
 
 		return rv, nil
 	} else {
+		fi, err := os.Stat(path)
+		if err != nil {
+			return nil, err
+		}
+
+		if !fi.IsDir() {
+			return nil, &SampleReaderError{"path must be either to a zip file or a directory"}
+		}
+
 		rv := &SamplesReader{
 			closer:       DirCloser{},
 			HasDocsPath:  false,
@@ -430,7 +447,7 @@ func OpenSamplesReader(path string) (*SamplesReader, error) {
 			DDocsPath:    "",
 			Files:        make([]SamplesFile, 0),
 		}
-		err := filepath.Walk(path, rv.addFile)
+		err = filepath.Walk(path, rv.addFile)
 		if err != nil {
 			return nil, err
 		}
