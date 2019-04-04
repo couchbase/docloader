@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/couchbase/clog"
-	"github.com/couchbase/gocb"
+	"gopkg.in/couchbase/gocb.v1"
 )
 
 const maxConsecutiveTimeouts int = 10
