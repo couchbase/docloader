@@ -38,7 +38,7 @@ GoInstall (TARGET cbdocloader PACKAGE github.com/couchbase/docloader/cmd/cbdoclo
   GOTAGS "forestdb forestdb_default_kvstore"
   LDFLAGS "${_ldflags} -X main.installType=couchbase -X main.versionHash=${_version_hash}"
   INSTALL_PATH bin OUTPUT cbdocloader
-  GOVERSION 1.12.4)
+  GOVERSION 1.8.5)
 
 INSTALL(FILES
   examples/beer-sample.zip
