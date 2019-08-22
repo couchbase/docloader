@@ -199,14 +199,20 @@ func (js *jsonSampleImporter) Queries(bucket string) bool {
 					query := gocb.NewN1qlQuery(queryDef.Statement)
 					query.Consistency(gocb.NotBounded)
 					_, err := b.ExecuteN1qlQuery(query, nil)
+					queryRetires := 0
 					if err != nil {
 						if waitForN1QL && err.Error() == "No available N1QL nodes." {
 							clog.Log("N1QL Service not ready yet, retrying")
 							time.Sleep(1 * time.Second)
+							queryRetires++
 							sendQuery = true
 						} else {
 							clog.Error(err)
 							succeeded = false
+						}
+						if queryRetires > 10 {
+							clog.Log("Failed to execute query after 10 retries")
+							return false
 						}
 					}
 				}

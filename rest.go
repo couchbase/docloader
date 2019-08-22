@@ -226,10 +226,22 @@ func (r *RestClient) CreateBucket(settings *BucketSettings) error {
 		return HttpError{resp.StatusCode, method, url, ""}
 	}
 
-	for !r.isBucketReady(settings.Name) {
-		time.Sleep(1 * time.Second)
+	bucketReady := make(chan bool, 1)
+	go func() {
+		for !r.isBucketReady(settings.Name) {
+			time.Sleep(1 * time.Second)
+		}
+		bucketReady <- true
+	}()
+	bucketReadyTimeout := 10 * time.Second
+	bucketReadyTimer := time.NewTimer(bucketReadyTimeout)
+	defer bucketReadyTimer.Stop()
+	select {
+	case <-bucketReady:
+		return nil
+	case <-bucketReadyTimer.C:
+		return fmt.Errorf("timed out after %s waiting for bucket %s to be ready", bucketReadyTimeout, settings.Name)
 	}
-
 	return nil
 }
 
