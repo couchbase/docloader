@@ -233,7 +233,7 @@ func (r *RestClient) CreateBucket(settings *BucketSettings) error {
 		}
 		bucketReady <- true
 	}()
-	bucketReadyTimeout := 10 * time.Second
+	bucketReadyTimeout := 30 * time.Second
 	bucketReadyTimer := time.NewTimer(bucketReadyTimeout)
 	defer bucketReadyTimer.Stop()
 	select {
@@ -242,7 +242,6 @@ func (r *RestClient) CreateBucket(settings *BucketSettings) error {
 	case <-bucketReadyTimer.C:
 		return fmt.Errorf("timed out after %s waiting for bucket %s to be ready", bucketReadyTimeout, settings.Name)
 	}
-	return nil
 }
 
 func (r *RestClient) isBucketReady(bucket string) bool {
