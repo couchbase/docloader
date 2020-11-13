@@ -152,7 +152,7 @@ func main() {
 			),
 			cbflag.IntFlag(
 				/* Destination  */ &ctx.quota,
-				/* Default      */ 100,
+				/* Default      */ 200,
 				/* Short Option */ "m",
 				/* Long Option  */ "bucket-quota",
 				/* Env Variable */ "",
