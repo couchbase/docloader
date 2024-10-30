@@ -64,7 +64,7 @@ func (e HttpError) Error() string {
 		return fmt.Sprintf("Internal server error while executing \"%s %s\" "+
 			"check the server logs for more details", e.method, e.resource)
 	default:
-		return fmt.Sprintf("Recieved error %d while executing \"%s %s\"",
+		return fmt.Sprintf("Received error %d while executing \"%s %s\"",
 			e.code, e.method, e.resource)
 	}
 }
